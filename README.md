@@ -77,6 +77,11 @@ This is the place for you to write reflections:
 ### Mandatory (Publisher) Reflections
 
 #### Reflection Publisher-1
+Using `DashMap<String, DashMap<String, Subscriber>>` makes the repository fit the access pattern of this tutorial. The outer `DashMap` groups subscribers by product type, so notification lookup stays focused on one topic instead of scanning every subscriber. The inner `DashMap` uses subscriber URL as a key, which makes insertion and deletion straightforward because each receiver is uniquely identified by its callback URL. This structure also reduces manual synchronization work because `DashMap` already provides concurrent access semantics.
+
+If we only used a `Vec<Subscriber>` for all subscribers, the code would become less efficient and less clear. Every subscribe, list, and unsubscribe operation would need extra iteration logic to filter by product type and find the matching subscriber URL. That would mix grouping logic into many functions and make the notification flow more error-prone. With the current nested map approach, the repository expresses the domain model directly: one product type can have many subscribers.
+
+`DashMap` is also appropriate here because the publisher can receive multiple requests and later notify subscribers from multiple threads. Compared with a plain `HashMap`, we would otherwise need to add our own synchronization wrapper to avoid data races. With `DashMap`, the repository stays simpler while still being safe for concurrent reads and writes.
 
 #### Reflection Publisher-2
 
