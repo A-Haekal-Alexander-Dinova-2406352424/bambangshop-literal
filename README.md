@@ -77,7 +77,22 @@ This is the place for you to write reflections:
 ### Mandatory (Publisher) Reflections
 
 #### Reflection Publisher-1
+Using `DashMap<String, DashMap<String, Subscriber>>` makes the repository fit the access pattern of this tutorial. The outer `DashMap` groups subscribers by product type, so notification lookup stays focused on one topic instead of scanning every subscriber. The inner `DashMap` uses subscriber URL as a key, which makes insertion and deletion straightforward because each receiver is uniquely identified by its callback URL. This structure also reduces manual synchronization work because `DashMap` already provides concurrent access semantics.
+
+If we only used a `Vec<Subscriber>` for all subscribers, the code would become less efficient and less clear. Every subscribe, list, and unsubscribe operation would need extra iteration logic to filter by product type and find the matching subscriber URL. That would mix grouping logic into many functions and make the notification flow more error-prone. With the current nested map approach, the repository expresses the domain model directly: one product type can have many subscribers.
+
+`DashMap` is also appropriate here because the publisher can receive multiple requests and later notify subscribers from multiple threads. Compared with a plain `HashMap`, we would otherwise need to add our own synchronization wrapper to avoid data races. With `DashMap`, the repository stays simpler while still being safe for concurrent reads and writes.
 
 #### Reflection Publisher-2
+In MVC, the Model is often described broadly, but separating repository and service layers keeps each unit focused. The repository layer concentrates on data access and storage rules, while the service layer concentrates on business logic and application flow. This follows separation of concerns and makes the code easier to maintain because storage details do not leak into controller code or into the data structs themselves.
+
+If we only used the Model layer for everything, each model would need to know too much. `Product` would need to understand persistence and notification flow, `Subscriber` would need to understand storage and delivery orchestration, and `Notification` could become entangled with request handling. That would increase coupling between models, make changes riskier, and blur the boundary between plain data and business behavior. The result would be heavier models that are harder to test and harder to extend.
+
+Postman helps a lot in this tutorial because the system is driven by HTTP interactions across two applications. It makes it easy to repeat requests for subscribe, unsubscribe, create, publish, and delete without manually rebuilding each request. Features that are especially useful are saved collections, configurable request bodies and query parameters, and the ability to observe response payloads quickly while iterating on endpoint behavior.
 
 #### Reflection Publisher-3
+This tutorial uses the Push variation of the Observer pattern. The publisher prepares the notification payload and actively sends it to every subscribed receiver through each subscriber's `update()` method. The receivers do not ask the publisher for updates on their own; they only receive notifications when the publisher decides to push them.
+
+If we used the Pull variation instead, receivers would need to contact the publisher again whenever they wanted the latest information. One advantage is that the receiver could control when it fetches data and potentially request more details only when needed. The disadvantages for this tutorial are higher receiver complexity, additional API design for fetching notification data, and weaker immediacy because the subscriber has to initiate the follow-up request instead of receiving the full payload directly.
+
+Without multithreading in the notification process, the publisher would send updates to subscribers one by one on the same execution flow. That means a slow or unreachable receiver could delay the whole request, including the response to the shop owner's create, publish, or delete action. With separate threads, the publisher can trigger each notification independently, so one slow subscriber does not block the others as much and the notification process scales better when more subscribers are registered.
